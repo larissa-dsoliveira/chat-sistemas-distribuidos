@@ -5,6 +5,26 @@ Protótipo acadêmico de mensageria em tempo real sobre Elixir/Phoenix (BEAM OTP
 - **Presença em Tempo Real (CRDTs)**: `Phoenix.Presence` sincronizando participantes online entre servidores sem bloqueios ou locks centrais.
 - **Catálogo Replicado**: Salas públicas e privadas (com chave SHA-256) sincronizadas entre todos os nós com concorrência local em ETS.
 - **Mensagens Distribuídas**: `Phoenix.PubSub` distribuído entre todos os nós da rede.
+- **Observabilidade e Carga Ao Vivo**: Telemetria distribuída BEAM (`:erpc`), painel em tempo real e benchmarks de escala.
+
+## Painel de métricas ao vivo e apresentação (Pessoa 04)
+
+Para subir **todo o ambiente da apresentação ao vivo** (cluster BEAM + balanceador Nginx + painel de métricas em http://localhost:4040) no Linux local, em VM na nuvem ou em container único na nuvem (`Dockerfile.apresentacao`):
+
+```console
+./iniciar-apresentacao.sh                  # Sobe tudo pronto para apresentar
+./iniciar-apresentacao.sh escalar 6        # Escala nós ao vivo
+./iniciar-apresentacao.sh derrubar         # Demonstra failover ao vivo
+./iniciar-apresentacao.sh benchmark        # Gera tabela comparativa de escala
+```
+
+Ou diretamente via Compose:
+
+```console
+docker compose -f compose.lb.yml -f compose.metricas.yml up --build -d
+```
+
+Arquitetura completa (diagramas para o relatório), metodologia e roteiro ao vivo em `docs/ENTREGA_PESSOA_04.md`.
 
 ## Cluster atrás do balanceador (Pessoa 03)
 

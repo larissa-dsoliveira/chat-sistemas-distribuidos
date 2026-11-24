@@ -1,0 +1,43 @@
+# Pessoa 04: Painel de Métricas Ao Vivo + Motor de Benchmark acoplado ao cluster.
+#
+# Subir cluster + balanceador + painel de métricas (http://localhost:4040):
+#   docker compose -f compose.lb.yml -f compose.metricas.yml up --build -d
+#
+# Escalar nós do cluster em tempo real observando pelo painel:
+#   docker compose -f compose.lb.yml -f compose.metricas.yml up -d --scale chat=9
+#
+# Rodar benchmark CLI pontual pelo Docker:
+#   docker compose -f compose.lb.yml -f compose.metricas.yml run --rm benchmark
+
+services:
+  painel-metricas:
+    image: node:22-slim
+    working_dir: /load
+    volumes:
+      - ./scripts:/load:ro
+    command: ["node", "painel-metricas.mjs"]
+    ports:
+      - "${PANEL_BIND:-127.0.0.1}:${PANEL_PORT:-4040}:4040"
+    environment:
+      PANEL_PORT: "4040"
+      PANEL_BIND: "0.0.0.0"
+      TARGET_URL: "http://balanceador"
+    depends_on:
+      - balanceador
+
+  benchmark:
+    image: node:22-slim
+    profiles: ["benchmark"]
+    working_dir: /load
+    volumes:
+      - ./scripts:/load:ro
+    command: ["node", "benchmark.mjs"]
+    environment:
+      TARGET_URL: "http://balanceador"
+      CLIENTS: "${BENCH_CLIENTS:-60}"
+      ROOMS: "${BENCH_ROOMS:-3}"
+      MESSAGES: "${BENCH_MESSAGES:-25}"
+      CONCURRENCY_ROUNDS: "${BENCH_ROUNDS_IN_FLIGHT:-3}"
+      FORMAT: "${BENCH_FORMAT:-json}"
+    depends_on:
+      - balanceador

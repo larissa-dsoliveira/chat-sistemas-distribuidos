@@ -37,6 +37,13 @@ defmodule ChatDistribuidoWeb.Router do
     )
   end
 
+  get "/metrics" do
+    conn
+    |> put_resp_content_type("application/json")
+    |> put_resp_header("cache-control", "no-store")
+    |> send_resp(200, Jason.encode!(ChatDistribuido.Metrics.cluster_metrics()))
+  end
+
   match _ do
     send_resp(conn, 404, "Página não encontrada.")
   end

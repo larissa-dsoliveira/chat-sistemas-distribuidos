@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Observabilidade &amp; Carga em Tempo Real · BEAM / OTP</title>
+  <style>
+    :root,
+    [data-theme="dark"] {
+      --bg-page: #000000;
+      --bg-panel: #090a0f;
+      --bg-subpanel: #0e1117;
+      --bg-subpanel-hover: #161a23;
+      --bg-node: #0b0d13;
+      --bg-footer: rgba(5, 6, 8, 0.95);
+      --border: #1e222d;
+      --border-subtle: rgba(30, 34, 45, 0.65);
+      --border-hover: #3f485e;
+      --text-strong: #f4f4f5;
+      --text-main: #d4d4d8;
+      --text-muted: #a1a1aa;
+      --text-dim: #71717a;
+      --text-faint: #52525b;
+
+      --cyan: #22d3ee;
+      --cyan-soft: rgba(34, 211, 238, 0.78);
+      --cyan-bg: rgba(8, 51, 68, 0.55);
+      --cyan-border: rgba(6, 182, 212, 0.32);
+
+      --emerald: #34d399;
+      --emerald-soft: rgba(16, 185, 129, 0.8);
+      --emerald-bg: rgba(6, 78, 59, 0.35);
+      --emerald-border: rgba(16, 185, 129, 0.28);
+
+      --amber: #fbbf24;
+      --amber-soft: rgba(245, 158, 11, 0.82);
+
+      --red: #f87171;
+      --red-strong: #ef4444;
+      --red-bg: rgba(69, 10, 10, 0.28);
+      --red-bg-hover: rgba(69, 10, 10, 0.48);
+      --red-border: rgba(239, 68, 68, 0.4);
+
+      --purple: #c084fc;
+      --purple-soft: #d8b4fe;
+      --purple-bg: rgba(88, 28, 135, 0.32);
+      --purple-border: rgba(168, 85, 247, 0.32);
+
+      --blue: #2563eb;
+      --blue-hover: #3b82f6;
+
+      --chart-grid: #141721;
+      --chart-axis: #52525b;
+      --chart-cyan: #00e5ff;
+      --chart-cyan-fill: rgba(0, 229, 255, 0.09);
+      --chart-emerald: #10b981;
+      --chart-emerald-fill: rgba(16, 185, 129, 0.1);
+      --chart-amber: #f59e0b;
+      --chart-red: #ef4444;
+      --bar-track: #141721;
+      --scroll-thumb: #1e222d;
+      color-scheme: dark;
+    }
+
+    [data-theme="light"] {
+      --bg-page: #f1f5f9;
+      --bg-panel: #ffffff;
+      --bg-subpanel: #f8fafc;
+      --bg-subpanel-hover: #eef2f7;
+      --bg-node: #f8fafc;
+      --bg-footer: rgba(255, 255, 255, 0.94);
+      --border: #d8e0ec;
+      --border-subtle: #e5ebf3;
+      --border-hover: #94a3b8;
+      --text-strong: #0f172a;
+      --text-main: #1e293b;
+      --text-muted: #475569;
+      --text-dim: #64748b;
+      --text-faint: #94a3b8;
+
+      --cyan: #0284c7;
+      --cyan-soft: #0369a1;
+      --cyan-bg: #e0f2fe;
+      --cyan-border: #7dd3fc;
+
+      --emerald: #059669;
+      --emerald-soft: #047857;
+      --emerald-bg: #d1fae5;
+      --emerald-border: #6ee7b7;
+
+      --amber: #d97706;
+      --amber-soft: #b45309;
+
+      --red: #dc2626;
+      --red-strong: #dc2626;
+      --red-bg: #fef2f2;
+      --red-bg-hover: #fee2e2;
+      --red-border: #fca5a5;
+
+      --purple: #7c3aed;
+      --purple-soft: #6d28d9;
+      --purple-bg: #f3e8ff;
+      --purple-border: #d8b4fe;
+
+      --blue: #2563eb;
+      --blue-hover: #1d4ed8;
+
+      --chart-grid: #e2e8f0;
+      --chart-axis: #64748b;
+      --chart-cyan: #0284c7;
+      --chart-cyan-fill: rgba(2, 132, 199, 0.11);
+      --chart-emerald: #059669;
+      --chart-emerald-fill: rgba(5, 150, 105, 0.12);
+      --chart-amber: #d97706;
+      --chart-red: #dc2626;
+      --bar-track: #e2e8f0;
+      --scroll-thumb: #cbd5e1;
+      color-scheme: light;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body { height: 100%; }
+
+    body {
+      background: var(--bg-page);
+      color: var(--text-main);
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 12px 12px 48px;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.18s ease, color 0.18s ease;
+    }
+
+    .mono, code, input, button {
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    input[type="number"] { -moz-appearance: textfield; }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
+
+    .app-main {
+      width: 100%;
+      max-width: 1920px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      transition: background-color 0.18s ease, border-color 0.18s ease;
+    }
+
+    /* ==================== 1. BARRA DO GERADOR DE CARGA ==================== */
+    .load-bar {
+      padding: 10px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .load-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .load-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding-right: 12px;
+      margin-right: 4px;
+      border-right: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-strong);
+    }
+
+    .dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-sm { width: 6px; height: 6px; }
+    .dot-cyan { background: var(--cyan); }
+    .dot-emerald { background: var(--emerald); }
+    .dot-red { background: var(--red-strong); }
+    .dot-amber { background: var(--amber); }
+    .dot-blue { background: var(--blue); }
+    .dot-idle { background: var(--text-faint); }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+    .pulse { animation: pulseDot 1.6s ease-in-out infinite; }
+
+    .btn {
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--bg-subpanel);
+      color: var(--text-main);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 5px 10px;
+      font-size: 11.5px;
+      font-weight: 500;
+      line-height: 1.25;
+      text-decoration: none;
+      transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+    }
+    .btn:hover {
+      background: var(--bg-subpanel-hover);
+      border-color: var(--border-hover);
+      color: var(--text-strong);
+    }
+    .btn .muted-hint { color: var(--text-dim); font-weight: 400; }
+
+    .btn-preset-active {
+      border-color: var(--emerald);
+      background: var(--emerald-bg);
+      color: var(--text-strong);
+      box-shadow: 0 0 0 1px var(--emerald-border) inset;
+    }
+
+    .btn-danger {
+      border-color: var(--red-border);
+      background: var(--red-bg);
+      color: var(--red);
+    }
+    .btn-danger:hover {
+      background: var(--red-bg-hover);
+      border-color: var(--red-strong);
+      color: var(--red);
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      border-color: transparent;
+      color: #ffffff;
+      font-weight: 600;
+      padding: 5px 12px;
+    }
+    .btn-primary:hover {
+      background: var(--blue-hover);
+      border-color: transparent;
+      color: #ffffff;
+    }
+
+    .param-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: var(--bg-subpanel);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 11.5px;
+    }
+    .param-box label {
+      color: var(--text-dim);
+      user-select: none;
+    }
+    .param-box input {
+      width: 40px;
+      background: transparent;
+      border: none;
+      outline: none;
+      text-align: right;
+      color: var(--text-strong);
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+    .param-box input.w-sm { width: 30px; }
+
+    .state-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding-left: 10px;
+      border-left: 1px solid var(--border);
+      font-size: 11.5px;
+    }
+    .state-pill .lbl {
+      font-size: 10px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .state-val {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ==================== 2. GRADE DE 6 KPIS ==================== */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 1360px) {
+      .kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 720px) {
+      .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 480px) {
+      .kpi-grid { grid-template-columns: 1fr; }
+    }
+
+    .kpi-card {
+      padding: 10px 11px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 104px;
+    }
+    .kpi-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10.5px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+    .kpi-code { font-size: 10px; color: var(--text-faint); font-weight: 600; }
+    .kpi-main {
+      margin: 6px 0;
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+    }
+    .kpi-num {
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      color: var(--text-strong);
+    }
+    .kpi-unit { font-size: 11.5px; color: var(--text-muted); }
+
+    .kpi-foot {
+      padding-top: 6px;
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
+    .kpi-foot strong { color: var(--text-main); font-weight: 500; }
+
+    .kpi-foot-grid {
+      padding-top: 6px;
+      border-top: 1px solid var(--border-subtle);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2px 6px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    .kpi-foot-grid .right { text-align: right; }
+    .kpi-foot-grid strong { color: var(--text-main); font-weight: 600; }
+
+    .c-emerald { color: var(--emerald) !important; }
+    .c-emerald-soft { color: var(--emerald-soft) !important; }
+    .c-cyan { color: var(--cyan) !important; }
+    .c-cyan-soft { color: var(--cyan-soft) !important; }
+    .c-amber { color: var(--amber) !important; }
+    .c-amber-soft { color: var(--amber-soft) !important; }
+    .c-red { color: var(--red) !important; }
+    .c-purple { color: var(--purple) !important; }
+    .c-purple-soft { color: var(--purple-soft) !important; }
+
+    /* ==================== 3. GRÁFICOS EM TEMPO REAL ==================== */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    @media (max-width: 1024px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+
+    .chart-card {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .card-title {
+      font-size: 11.5px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-strong);
+    }
+    .card-title .sub {
+      text-transform: none;
+      font-weight: 400;
+      color: var(--text-dim);
+      letter-spacing: 0;
+    }
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .swatch {
+      width: 10px;
+      height: 4px;
+      border-radius: 1px;
+      display: inline-block;
+    }
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      height: 210px;
+      margin-top: 8px;
+    }
+    canvas { width: 100%; height: 100%; display: block; }
+
+    /* ==================== 4. NÓS BEAM (9 cols) & SALAS CRDT (3 cols) ==================== */
+    .bottom-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 9fr) minmax(260px, 3fr);
+      gap: 10px;
+      align-items: stretch;
+    }
+    @media (max-width: 1080px) {
+      .bottom-grid { grid-template-columns: 1fr; }
+    }
+
+    .nodes-panel, .rooms-panel {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+    }
+    .cluster-meta {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 11.5px;
+      color: var(--text-dim);
+    }
+    .cluster-meta strong { color: var(--text-main); font-weight: 500; }
+
+    .nodes-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(255px, 1fr));
+      gap: 10px;
+    }
+
+    .node-card {
+      background: var(--bg-node);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px;
+      font-size: 11.5px;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+    .node-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .node-name {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      color: var(--text-strong);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .conn-badge {
+      font-size: 10px;
+      color: var(--emerald);
+      background: var(--emerald-bg);
+      border: 1px solid var(--emerald-border);
+      padding: 1px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+    }
+    .bar-track {
+      width: 100%;
+      height: 3px;
+      background: var(--bar-track);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--cyan), var(--emerald));
+      transition: width 0.25s ease;
+    }
+    .node-stats {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 5px 8px;
+      font-size: 11px;
+    }
+    .node-stats .k { color: var(--text-dim); }
+    .node-stats .v { color: var(--text-strong); }
+
+    .rooms-list {
+      margin: 10px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      flex: 1;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+    .room-item {
+      background: var(--bg-node);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 7px 9px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11.5px;
+    }
+    .room-left {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+    .room-name {
+      color: var(--text-strong);
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .room-badge {
+      font-size: 9.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--cyan-bg);
+      border: 1px solid var(--cyan-border);
+      color: var(--cyan);
+      flex-shrink: 0;
+    }
+    .room-badge.privada {
+      background: var(--purple-bg);
+      border-color: var(--purple-border);
+      color: var(--purple);
+    }
+    .room-empty {
+      padding: 8px;
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-faint);
+    }
+    .rooms-foot {
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--text-dim);
+    }
+
+    /* ==================== 5. RODAPÉ FIXO MINIMALISTA ==================== */
+    .telemetry-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 36px;
+      background: var(--bg-footer);
+      backdrop-filter: blur(8px);
+      border-top: 1px solid var(--border);
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 11.5px;
+      z-index: 50;
+    }
+    .footer-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .footer-desc {
+      color: var(--text-muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .footer-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .live-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-subpanel);
+      border: 1px solid var(--border);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .target-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .target-code {
+      color: var(--text-main);
+      background: var(--bg-subpanel);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+    .btn-xs {
+      padding: 3px 8px;
+      font-size: 11px;
+    }
+    @media (max-width: 860px) {
+      .target-wrap, .footer-desc { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-main">
+    <!-- 1. GERADOR DE CARGA WEBSOCKET -->
+    <section class="panel load-bar" aria-label="Gerador de Carga WebSocket">
+      <div class="load-group">
+        <div class="load-title mono">
+          <span class="dot dot-cyan"></span>
+          <span>Gerador de Carga WebSocket</span>
+        </div>
+
+        <button class="btn" type="button" data-preset="leve" onclick="runPreset('leve', 20, 1, 400, 60)">
+          1. Carga Leve <span class="muted-hint">(20 bots · 1 sala)</span>
+        </button>
+        <button class="btn" type="button" data-preset="salas" onclick="runPreset('salas', 60, 4, 300, 60)">
+          2. Múltiplas Salas <span class="muted-hint">(60 bots · 4 salas)</span>
+        </button>
+        <button class="btn" type="button" data-preset="estresse" onclick="runPreset('estresse', 120, 1, 200, 60)">
+          3. Pico Fan-out <span class="muted-hint">(120 bots · 1 sala)</span>
+        </button>
+        <button class="btn" type="button" data-preset="hiper" onclick="runPreset('hiper', 180, 6, 200, 60)">
+          4. Escala Cluster <span class="muted-hint">(180 bots · 6 salas)</span>
+        </button>
+
+        <button class="btn btn-danger" type="button" onclick="stopLoad()">
+          <span class="dot dot-sm dot-red"></span> Parar Carga
+        </button>
+        <button class="btn" type="button" onclick="resetStats()">↺ Limpar</button>
+      </div>
+
+      <div class="load-group mono">
+        <div class="param-box">
+          <label for="in-clients">Bots:</label>
+          <input id="in-clients" type="number" min="1" max="500" value="90" />
+        </div>
+        <div class="param-box">
+          <label for="in-rooms">Salas:</label>
+          <input id="in-rooms" class="w-sm" type="number" min="1" max="15" value="3" />
+        </div>
+        <div class="param-box">
+          <label for="in-interval">Intervalo(ms):</label>
+          <input id="in-interval" type="number" min="50" max="5000" step="50" value="250" />
+        </div>
+        <div class="param-box">
+          <label for="in-duration">Duração(s):</label>
+          <input id="in-duration" class="w-sm" type="number" min="10" max="600" value="60" />
+        </div>
+
+        <button class="btn btn-primary" type="button" onclick="runCustom()">▶ Disparar Customizado</button>
+
+        <div class="state-pill">
+          <span class="lbl">Estado:</span>
+          <span class="state-val" id="load-banner">
+            <span class="dot dot-sm dot-idle"></span> Inativo
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. GRADE DE 6 KPIS TÉCNICOS -->
+    <section class="kpi-grid" aria-label="Métricas Principais">
+      <article class="panel kpi-card">
+        <header class="kpi-head mono">
+          <span>PUBLICAÇÃO (ENTRADA)</span>
+          <span class="kpi-code">IN</span>
+        </header>
+        <div class="kpi-main mono">
+          <span class="kpi-num c-emerald" id="kpi-msg-rate">0</span>
+          <span class="kpi-unit c-emerald-soft">msg/s</span>
+        </div>
+        <footer class="kpi-foot mono">
+          <span>Pico: <strong id="kpi-msg-peak">0/s</strong></span>
+          <span>Total OK: <strong id="kpi-msg-total">0</strong></span>
+        </footer>
+      </article>
+
+      <article class="panel kpi-card">
+        <header class="kpi-head mono">
+          <span>THROUGHPUT FAN-OUT</span>
+          <span class="kpi-code c-cyan-soft">OUT</span>
+        </header>
+        <div class="kpi-main mono">
+          <span class="kpi-num c-cyan" id="kpi-deliv-rate">0</span>
+          <span class="kpi-unit c-cyan-soft">entregas/s</span>
+        </div>
+        <footer class="kpi-foot mono">
+          <span>Pico: <strong id="kpi-deliv-peak">0/s</strong></span>
+          <span>Entregas: <strong id="kpi-deliv-total">0</strong></span>
+        </footer>
+      </article>
+
+      <article class="panel kpi-card">
+        <header class="kpi-head mono">
+          <span>LATÊNCIA BROADCAST (P50)</span>
+          <span class="kpi-code c-amber-soft">RT</span>
+        </header>
+        <div class="kpi-main mono">
+          <span class="kpi-num c-amber" id="kpi-p50">0.0</span>
+          <span class="kpi-unit c-amber-soft">ms</span>
+        </div>
+        <footer class="kpi-foot-grid mono">
+          <span>p95: <strong id="kpi-p95">0.0 ms</strong></span>
+          <span class="right">ACK: <strong id="kpi-ack">0.0 ms</strong></span>
+          <span class="c-red">p99: <strong class="c-red" id="kpi-p99">0.0 ms</strong></span>
+          <span class="right">Jitter: <strong id="kpi-jitter">0.0</strong></span>
+        </footer>
+      </article>
+
+      <article class="panel kpi-card">
+        <header class="kpi-head mono">
+          <span>CONSISTÊNCIA &amp; FAILOVER</span>
+          <span class="kpi-code">CRDT</span>
+        </header>
+        <div class="kpi-main mono">
+          <span class="kpi-num" id="kpi-bots-online">0</span>
+          <span class="kpi-unit">bots ativos</span>
+        </div>
+        <footer class="kpi-foot mono">
+          <span>Duplicadas: <strong class="c-emerald" id="kpi-dup">0</strong></span>
+          <span>Reconexões: <strong id="kpi-reconn">0</strong></span>
+        </footer>
+      </article>
+
+      <article class="panel kpi-card">
+        <header class="kpi-head mono">
+          <span>CLUSTER BEAM (ERLANG VM)</span>
+          <span class="kpi-code c-purple">OTP</span>
+        </header>
+        <div class="kpi-main mono">
+          <span class="kpi-num c-purple" id="kpi-nodes">0</span>
+          <span class="kpi-unit c-purple-soft">nós vivos</span>
+        </div>
+        <footer class="kpi-foot mono">
+          <span>Procs: <strong id="kpi-procs">0</strong></span>
+          <span>RAM: <strong id="kpi-mem">0 MB</strong></span>
+          <span>Fila: <strong id="kpi-rq">0</strong></span>
+        </footer>
+      </article>
+
+      <article class="panel kpi-card">
+        <header class="kpi-head mono">
+          <span>BALANCEADOR NGINX (:80)</span>
+          <span class="kpi-code">PROXY</span>
+        </header>
+        <div class="kpi-main mono">
+          <span class="kpi-num" id="kpi-lb-active">—</span>
+          <span class="kpi-unit">conexões</span>
+        </div>
+        <footer class="kpi-foot mono">
+          <span>Waiting: <strong id="kpi-lb-wait">—</strong></span>
+          <span>Aceitas: <strong id="kpi-lb-acc">—</strong></span>
+        </footer>
+      </article>
+    </section>
+
+    <!-- 3. GRÁFICOS EM TEMPO REAL -->
+    <section class="charts-grid" aria-label="Gráficos em Tempo Real">
+      <article class="panel chart-card">
+        <header class="card-head">
+          <h2 class="card-title mono">
+            Throughput em Tempo Real <span class="sub">(últimos 60s)</span>
+          </h2>
+          <div class="legend mono">
+            <span class="legend-item">
+              <span class="swatch" style="background: var(--chart-cyan)"></span> Entregas Broadcast/s
+            </span>
+            <span class="legend-item">
+              <span class="swatch" style="background: var(--chart-emerald)"></span> Publicações/s
+            </span>
+          </div>
+        </header>
+        <div class="chart-wrap">
+          <canvas id="chart-throughput"></canvas>
+        </div>
+      </article>
+
+      <article class="panel chart-card">
+        <header class="card-head">
+          <h2 class="card-title mono">
+            Latência End-to-End WebSocket <span class="sub">(ms · últimos 60s)</span>
+          </h2>
+          <div class="legend mono">
+            <span class="legend-item">
+              <span class="swatch" style="background: var(--chart-emerald)"></span> p50 (Mediana)
+            </span>
+            <span class="legend-item">
+              <span class="swatch" style="background: var(--chart-amber)"></span> p95
+            </span>
+            <span class="legend-item">
+              <span class="swatch" style="background: var(--chart-red)"></span> p99 (Cauda)
+            </span>
+          </div>
+        </header>
+        <div class="chart-wrap">
+          <canvas id="chart-latency"></canvas>
+        </div>
+      </article>
+    </section>
+
+    <!-- 4. TELEMETRIA DOS NÓS BEAM & SALAS CRDT -->
+    <section class="bottom-grid" aria-label="Nós BEAM e Salas CRDT">
+      <article class="panel nodes-panel">
+        <header class="card-head">
+          <h2 class="card-title mono">
+            Telemetria Individual dos Nós BEAM <span class="sub">(via :erpc.multicall)</span>
+          </h2>
+          <div class="cluster-meta mono" id="cluster-subtitle">
+            <span>Aguardando leitura de /metrics…</span>
+          </div>
+        </header>
+        <div id="nodes-container" class="nodes-grid"></div>
+      </article>
+
+      <article class="panel rooms-panel">
+        <header class="card-head">
+          <h2 class="card-title mono">Salas &amp; Presença (CRDT)</h2>
+          <span class="mono c-cyan" style="font-size: 11.5px" id="crdt-total">0 sessões online</span>
+        </header>
+        <div id="rooms-container" class="rooms-list">
+          <div class="room-empty mono">Aguardando sincronização CRDT…</div>
+        </div>
+        <footer class="rooms-foot mono">
+          <span>Replicação: Delta-CRDT</span>
+          <span class="c-emerald" id="crdt-health">Consistente</span>
+        </footer>
+      </article>
+    </section>
+  </main>
+
+  <!-- 5. FAIXA DE TELEMETRIA DISCRETA FIXA NO RODAPÉ -->
+  <footer class="telemetry-footer mono" aria-label="Barra de Status e Ações">
+    <div class="footer-left">
+      <span style="display:inline-flex;align-items:center;gap:6px">
+        <span class="dot dot-sm dot-blue"></span>
+        <strong style="color:var(--text-strong)">P4</strong>
+      </span>
+      <span style="color:var(--text-faint)">|</span>
+      <span class="footer-desc">Pessoa 04 · Telemetria Distribuída (:erpc), CRDT Presence, Nginx Load Balancer</span>
+    </div>
+
+    <div class="footer-right">
+      <div class="live-pill">
+        <span id="sse-dot" class="dot dot-sm dot-amber pulse"></span>
+        <span id="sse-status" class="c-amber">Conectando…</span>
+      </div>
+
+      <div class="target-wrap">
+        <span>Alvo:</span>
+        <code id="target-url" class="target-code">—</code>
+      </div>
+
+      <button id="theme-toggle" class="btn btn-xs" type="button" onclick="toggleTheme()" title="Alternar entre modo escuro OLED e modo claro">
+        ☀ Claro
+      </button>
+      <a id="open-chat-link" class="btn btn-xs" href="/" target="_blank" rel="noopener">Abrir Chat ↗</a>
+      <a class="btn btn-xs" href="api/export">Exportar JSON ⤓</a>
+    </div>
+  </footer>
+
+  <script>
+    const MAX_POINTS = 120;
+    let series = [];
+    const $ = (id) => document.getElementById(id);
+    const fmtInt = (n) => Number(n || 0).toLocaleString("pt-BR");
+
+    // ==================== TEMA ESCURO OLED / CLARO ====================
+    function applyTheme(theme) {
+      const next = theme === "light" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      const btn = $("theme-toggle");
+      if (btn) btn.textContent = next === "light" ? "☾ Escuro" : "☀ Claro";
+      try { localStorage.setItem("p4-theme", next); } catch {}
+      drawCharts();
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      applyTheme(current === "dark" ? "light" : "dark");
+    }
+
+    (function initTheme() {
+      let saved = null;
+      try { saved = localStorage.getItem("p4-theme"); } catch {}
+      applyTheme(saved === "light" ? "light" : "dark");
+    })();
+
+    // ==================== CONTROLE DE CARGA ====================
+    async function runPreset(preset, clients, rooms, intervalMs, durationSec) {
+      $("in-clients").value = clients;
+      $("in-rooms").value = rooms;
+      $("in-interval").value = intervalMs;
+      $("in-duration").value = durationSec;
+      await fetch("api/load/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preset, clients, rooms, intervalMs, durationSec })
+      });
+    }
+
+    async function runCustom() {
+      await fetch("api/load/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preset: "custom",
+          clients: Number($("in-clients").value),
+          rooms: Number($("in-rooms").value),
+          intervalMs: Number($("in-interval").value),
+          durationSec: Number($("in-duration").value)
+        })
+      });
+    }
+
+    async function stopLoad() {
+      await fetch("api/load/stop", { method: "POST" });
+    }
+
+    async function resetStats() {
+      series = [];
+      await fetch("api/load/reset", { method: "POST" });
+      drawCharts();
+    }
+
+    function resolveChatHref(publicChatUrl) {
+      if (publicChatUrl) return publicChatUrl;
+      if (window.location.pathname.startsWith("/painel")) return "/";
+      return `${window.location.protocol}//${window.location.hostname}:4000`;
+    }
+    $("open-chat-link").href = resolveChatHref(null);
+
+    // ==================== ATUALIZAÇÃO DO PAINEL ====================
+    function updateDashboard(snap) {
+      $("target-url").textContent = snap.target_url || "—";
+
+      const carga = snap.carga || {};
+      const taxas = carga.taxas || {};
+      const lat = (carga.ativa ? carga.latencia_janela_ms : carga.latencia_acumulada_ms) || {};
+      const cnt = carga.contadores || {};
+
+      document.querySelectorAll("[data-preset]").forEach((btn) => {
+        btn.classList.toggle("btn-preset-active", Boolean(carga.ativa && btn.dataset.preset === carga.preset));
+      });
+
+      if (carga.ativa) {
+        const rest = carga.tempo_restante_seg != null ? ` · ${carga.tempo_restante_seg}s` : "";
+        $("load-banner").innerHTML =
+          `<span class="dot dot-sm dot-emerald pulse"></span>` +
+          `<span class="c-emerald">${carga.iniciando ? "Conectando" : "Ativo"} (${carga.bots_online}/${carga.bots_configurados}${rest})</span>`;
+      } else {
+        const suffix = cnt.entregas > 0 ? ` · ${fmtInt(cnt.entregas)} ent.` : "";
+        $("load-banner").innerHTML =
+          `<span class="dot dot-sm dot-idle"></span><span>Inativo${suffix}</span>`;
+      }
+
+      $("kpi-msg-rate").textContent = fmtInt(taxas.msgs_enviadas_seg);
+      $("kpi-msg-peak").textContent = `${fmtInt(taxas.pico_msgs_seg)}/s`;
+      $("kpi-msg-total").textContent = fmtInt(cnt.confirmadas);
+
+      $("kpi-deliv-rate").textContent = fmtInt(taxas.entregas_recebidas_seg);
+      $("kpi-deliv-peak").textContent = `${fmtInt(taxas.pico_entregas_seg)}/s`;
+      $("kpi-deliv-total").textContent = fmtInt(cnt.entregas);
+
+      const p50 = Number(lat.p50 || 0);
+      const p95 = Number(lat.p95 || 0);
+      const p99 = Number(lat.p99 || 0);
+      const jitter = Math.max(0, p95 - p50);
+
+      $("kpi-p50").textContent = p50.toFixed(1);
+      $("kpi-p95").textContent = `${p95.toFixed(1)} ms`;
+      $("kpi-p99").textContent = `${p99.toFixed(1)} ms`;
+      $("kpi-ack").textContent = `${Number(carga.latencia_ack_ms?.p50 || 0).toFixed(1)} ms`;
+      $("kpi-jitter").textContent = jitter.toFixed(1);
+
+      $("kpi-bots-online").textContent = fmtInt(carga.bots_online);
+      $("kpi-dup").textContent = fmtInt(cnt.duplicadas);
+      $("kpi-dup").className = cnt.duplicadas > 0 ? "c-red" : "c-emerald";
+      $("kpi-reconn").textContent = fmtInt(cnt.reconexoes);
+
+      const cluster = snap.cluster;
+      if (cluster && cluster.resumo_cluster) {
+        const r = cluster.resumo_cluster;
+        $("kpi-nodes").textContent = fmtInt(r.total_nos);
+        $("kpi-procs").textContent = fmtInt(r.processos_cluster);
+        $("kpi-mem").textContent = `${Number(r.memoria_cluster_mb || 0).toFixed(1)} MB`;
+        $("kpi-rq").textContent = fmtInt(r.run_queue_cluster);
+        $("cluster-subtitle").innerHTML =
+          `<span>Modo: <strong>${escapeHtml(cluster.modo)}</strong></span>` +
+          `<span>·</span>` +
+          `<span>Schedulers totais: <strong>${fmtInt(r.schedulers_cluster)}</strong></span>` +
+          `<span>·</span>` +
+          `<span>Salas replicadas: <strong>${fmtInt(r.salas_replicadas)}</strong></span>`;
+        renderNodes(cluster.nos || [], r.sessoes_ativas || 0, carga.bots_por_no || {});
+        renderRooms(cluster.presenca_crdt);
+        $("crdt-health").textContent = r.nos_inacessiveis > 0 ? `${r.nos_inacessiveis} nó(s) fora` : "Consistente";
+        $("crdt-health").className = r.nos_inacessiveis > 0 ? "c-amber" : "c-emerald";
+      } else if (snap.erro_coleta) {
+        $("cluster-subtitle").innerHTML = `<span class="c-amber">Atenção: ${escapeHtml(snap.erro_coleta)}</span>`;
+      }
+
+      const lb = snap.balanceador;
+      if (lb) {
+        $("kpi-lb-active").textContent = fmtInt(lb.conexoes_ativas);
+        $("kpi-lb-wait").textContent = fmtInt(lb.waiting);
+        $("kpi-lb-acc").textContent = fmtInt(lb.aceitas);
+      } else {
+        $("kpi-lb-active").textContent = "Direto";
+        $("kpi-lb-wait").textContent = "—";
+        $("kpi-lb-acc").textContent = "—";
+      }
+    }
+
+    function renderNodes(nodes, totalSessions, botsByNode) {
+      const container = $("nodes-container");
+      const maxSessions = Math.max(1, totalSessions);
+      container.innerHTML = nodes.map((n) => {
+        const sess = Math.max(n.sessoes_crdt || 0, botsByNode[n.no] || 0);
+        const pct = Math.min(100, Math.round((sess / maxSessions) * 100));
+        const mem = n.memoria_mb || {};
+        const proc = n.processos || {};
+        const taxas = n.taxas || {};
+        const sch = n.schedulers || {};
+        const cat = n.catalogo_local || {};
+        return `
+          <div class="node-card mono">
+            <header class="node-head">
+              <span class="node-name" title="${escapeHtml(n.no)}">
+                <span class="dot dot-emerald"></span>${escapeHtml(n.no)}
+              </span>
+              <span class="conn-badge">${sess} conn (${pct}%)</span>
+            </header>
+            <div class="bar-track" title="Proporção de conexões neste nó">
+              <div class="bar-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="node-stats">
+              <div><span class="k">Processos:</span> <span class="v">${fmtInt(proc.ativos)}</span></div>
+              <div><span class="k">Memória:</span> <span class="v">${mem.total ?? 0} MB</span></div>
+              <div><span class="k">ETS / Bin:</span> <span class="v">${mem.ets ?? 0} / ${mem.binarios ?? 0} MB</span></div>
+              <div><span class="k">Schedulers:</span> <span class="v">${sch.online ?? 0} <span class="k">(fila ${sch.run_queue ?? 0})</span></span></div>
+              <div><span class="k">Reduções/s:</span> <span class="v">${fmtInt(taxas.reducoes_seg)}</span></div>
+              <div><span class="k">Rede I/O:</span> <span class="v">${taxas.io_kb_seg ?? 0} KB/s</span></div>
+              <div><span class="k">Salas ETS:</span> <span class="v">${cat.salas_total ?? 0}</span></div>
+              <div><span class="k">Uptime:</span> <span class="v">${n.uptime_segundos ?? 0}s</span></div>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function renderRooms(presenca) {
+      if (!presenca) return;
+      $("crdt-total").textContent = `${fmtInt(presenca.sessoes_ativas)} sessões online`;
+      const salas = presenca.salas_ativas || [];
+      const rows = salas.map((s) => `
+        <div class="room-item mono">
+          <div class="room-left">
+            <span class="room-badge ${s.tipo === "privada" ? "privada" : ""}">${escapeHtml(s.tipo)}</span>
+            <span class="room-name" title="${escapeHtml(s.nome)}">${escapeHtml(s.nome)}</span>
+          </div>
+          <span style="color:var(--text-muted);flex-shrink:0"><strong class="c-cyan">${fmtInt(s.online)}</strong> online</span>
+        </div>
+      `).join("");
+
+      const emptyHint = salas.length <= 1
+        ? `<div class="room-empty mono">Nenhuma outra sala alocada no cluster</div>`
+        : "";
+      $("rooms-container").innerHTML = rows + emptyHint;
+    }
+
+    function escapeHtml(str) {
+      return String(str ?? "").replace(/[&<>"']/g, (c) => (
+        { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+      ));
+    }
+
+    // ==================== GRÁFICOS CANVAS DE ALTA FIDELIDADE ====================
+    function cssVar(name) {
+      return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+    }
+
+    function drawIndustrialChart(canvasId, lines) {
+      const canvas = $(canvasId);
+      if (!canvas) return;
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(dpr, dpr);
+
+      const W = rect.width;
+      const H = rect.height;
+      const padL = 44, padR = 10, padT = 14, padB = 22;
+      const plotW = W - padL - padR;
+      const plotH = H - padT - padB;
+
+      ctx.clearRect(0, 0, W, H);
+
+      let maxVal = 10;
+      for (const line of lines) {
+        for (const pt of series) {
+          const v = pt[line.key] || 0;
+          if (v > maxVal) maxVal = v;
+        }
+      }
+      maxVal = maxVal * 1.12;
+
+      const gridColor = cssVar("--chart-grid");
+      const axisColor = cssVar("--chart-axis");
+
+      ctx.font = '10px "JetBrains Mono", ui-monospace, monospace';
+      ctx.fillStyle = axisColor;
+      ctx.strokeStyle = gridColor;
+      ctx.lineWidth = 1;
+
+      // Grade horizontal + eixo Y
+      const ySteps = 4;
+      ctx.textAlign = "right";
+      for (let i = 0; i <= ySteps; i++) {
+        const y = padT + (plotH * i) / ySteps;
+        const val = maxVal * (1 - i / ySteps);
+        const label = val >= 1000
+          ? `${(val / 1000).toFixed(1)}k`
+          : val >= 100
+            ? Math.round(val).toString()
+            : val.toFixed(1);
+        ctx.fillText(label, padL - 6, y + 3);
+        ctx.beginPath();
+        ctx.moveTo(padL, y);
+        ctx.lineTo(W - padR, y);
+        ctx.stroke();
+      }
+
+      // Eixo X (-60s -> 0s)
+      const xLabels = ["-60s", "-45s", "-30s", "-15s", "0s"];
+      ctx.textAlign = "center";
+      xLabels.forEach((lbl, idx) => {
+        const x = padL + (plotW / (xLabels.length - 1)) * idx;
+        const alignOffset = idx === 0 ? 10 : idx === xLabels.length - 1 ? -8 : 0;
+        ctx.fillText(lbl, x + alignOffset, H - 5);
+      });
+
+      const baseY = padT + plotH;
+
+      // Se ainda sem amostras suficientes, desenha linha de base limpa
+      if (series.length < 2) {
+        for (const line of lines) {
+          ctx.beginPath();
+          ctx.strokeStyle = cssVar(line.colorVar);
+          ctx.lineWidth = 1.5;
+          ctx.moveTo(padL, baseY);
+          ctx.lineTo(W - padR, baseY);
+          ctx.stroke();
+        }
+        return;
+      }
+
+      const startOffset = MAX_POINTS - series.length;
+      for (const line of lines) {
+        const strokeColor = cssVar(line.colorVar);
+        ctx.beginPath();
+        series.forEach((pt, idx) => {
+          const x = padL + ((startOffset + idx) / (MAX_POINTS - 1)) * plotW;
+          const y = padT + plotH - ((pt[line.key] || 0) / maxVal) * plotH;
+          if (idx === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        });
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = 1.75;
+        ctx.stroke();
+
+        if (line.fillVar) {
+          const firstX = padL + (startOffset / (MAX_POINTS - 1)) * plotW;
+          const lastX = padL + ((startOffset + series.length - 1) / (MAX_POINTS - 1)) * plotW;
+          ctx.lineTo(lastX, baseY);
+          ctx.lineTo(firstX, baseY);
+          ctx.closePath();
+          ctx.fillStyle = cssVar(line.fillVar);
+          ctx.fill();
+        }
+      }
+    }
+
+    function drawCharts() {
+      drawIndustrialChart("chart-throughput", [
+        { key: "entregas_seg", colorVar: "--chart-cyan", fillVar: "--chart-cyan-fill" },
+        { key: "msgs_seg", colorVar: "--chart-emerald", fillVar: "--chart-emerald-fill" }
+      ]);
+
+      drawIndustrialChart("chart-latency", [
+        { key: "p99", colorVar: "--chart-red" },
+        { key: "p95", colorVar: "--chart-amber" },
+        { key: "p50", colorVar: "--chart-emerald", fillVar: "--chart-emerald-fill" }
+      ]);
+    }
+
+    window.addEventListener("resize", drawCharts);
+
+    // ==================== STREAM SSE ====================
+    function connectStream() {
+      const es = new EventSource("api/stream");
+      es.addEventListener("init", (ev) => {
+        const data = JSON.parse(ev.data);
+        series = Array.isArray(data.history) ? data.history.slice(-MAX_POINTS) : [];
+        $("target-url").textContent = data.target_url || "—";
+        $("open-chat-link").href = resolveChatHref(data.public_chat_url);
+        $("sse-dot").className = "dot dot-sm dot-emerald pulse";
+        $("sse-status").className = "c-emerald";
+        $("sse-status").textContent = "Ao vivo (500ms)";
+        drawCharts();
+      });
+      es.addEventListener("tick", (ev) => {
+        const { snapshot, point } = JSON.parse(ev.data);
+        series.push(point);
+        if (series.length > MAX_POINTS) series.shift();
+        if (snapshot.erro_coleta) {
+          $("sse-dot").className = "dot dot-sm dot-amber pulse";
+          $("sse-status").className = "c-amber";
+          $("sse-status").textContent = "Reconectando…";
+        } else {
+          $("sse-dot").className = "dot dot-sm dot-emerald pulse";
+          $("sse-status").className = "c-emerald";
+          $("sse-status").textContent = "Ao vivo (500ms)";
+        }
+        updateDashboard(snapshot);
+        drawCharts();
+      });
+      es.onerror = () => {
+        $("sse-dot").className = "dot dot-sm dot-red";
+        $("sse-status").className = "c-red";
+        $("sse-status").textContent = "Stream offline";
+      };
+    }
+
+    connectStream();
+    drawCharts();
+  </script>
+</body>
+</html>
