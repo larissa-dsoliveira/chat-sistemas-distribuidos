@@ -1,0 +1,196 @@
+defmodule ChatDistribuido.Metrics do
+  @moduledoc """
+  Pessoa 04: Coleta isolada de telemetria da VM Erlang/BEAM, catálogo ETS e presença CRDT
+  em todos os nós conectados do cluster.
+  """
+
+  alias ChatDistribuido.Cluster.Discovery
+  alias ChatDistribuido.NodeInfo
+  alias ChatDistribuidoWeb.Presence
+
+  @dist_rooms :chat_distribuido_dist_rooms
+  @local_rooms :chat_distribuido_rooms
+  @rpc_timeout_ms 1_000
+
+  @doc "Retorna o panorama consolidado do cluster e as métricas individuais de cada nó BEAM."
+  def cluster_metrics do
+    local = local_snapshot()
+    remote_nodes = Discovery.connected_nodes()
+    {remote_snapshots, unreachable} = fetch_remote_snapshots(remote_nodes)
+    presence = presence_summary()
+
+    nodes =
+      [local | remote_snapshots]
+      |> Enum.map(fn snap ->
+        Map.put(snap, :sessoes_crdt, Map.get(presence.por_no, snap.no, 0))
+      end)
+      |> Enum.sort_by(& &1.no)
+
+    %{
+      coletado_em:
+        DateTime.utc_now() |> DateTime.truncate(:millisecond) |> DateTime.to_iso8601(),
+      no_respondedor: local.no,
+      modo: if(local.vivo, do: "cluster", else: "local"),
+      resumo_cluster: aggregate_cluster(nodes, unreachable, presence),
+      presenca_crdt: presence,
+      nos: nodes
+    }
+  end
+
+  @doc "Coleta métricas locais da VM Erlang/BEAM e tabelas ETS deste nó."
+  def local_snapshot do
+    mem = :erlang.memory()
+    {uptime_ms, _} = :erlang.statistics(:wall_clock)
+    {reductions, _} = :erlang.statistics(:reductions)
+    {{:input, io_in}, {:output, io_out}} = :erlang.statistics(:io)
+    rooms = read_rooms()
+    public_count = Enum.count(rooms, &(&1.tipo == "publica"))
+    private_count = length(rooms) - public_count
+
+    %{
+      no: NodeInfo.nome(),
+      vivo: Node.alive?(),
+      uptime_segundos: div(uptime_ms, 1_000),
+      processos: %{
+        ativos: :erlang.system_info(:process_count),
+        limite: :erlang.system_info(:process_limit)
+      },
+      portas_io: %{
+        ativas: :erlang.system_info(:port_count),
+        sockets_otp: otp_socket_count()
+      },
+      schedulers: %{
+        online: :erlang.system_info(:schedulers_online),
+        total: :erlang.system_info(:schedulers),
+        run_queue: :erlang.statistics(:total_run_queue_lengths_all)
+      },
+      memoria_mb: %{
+        total: bytes_to_mb(mem[:total]),
+        processos: bytes_to_mb(mem[:processes]),
+        ets: bytes_to_mb(mem[:ets]),
+        binarios: bytes_to_mb(mem[:binary]),
+        sistema: bytes_to_mb(mem[:system])
+      },
+      atividade_vm: %{
+        reducoes: reductions,
+        io_entrada_kb: Float.round(io_in / 1_024, 1),
+        io_saida_kb: Float.round(io_out / 1_024, 1)
+      },
+      catalogo_local: %{
+        salas_total: length(rooms),
+        salas_publicas: public_count,
+        salas_privadas: private_count
+      }
+    }
+  end
+
+  defp fetch_remote_snapshots([]), do: {[], 0}
+
+  defp fetch_remote_snapshots(remote_nodes) do
+    results =
+      try do
+        :erpc.multicall(remote_nodes, __MODULE__, :local_snapshot, [], @rpc_timeout_ms)
+      rescue
+        _ -> Enum.map(remote_nodes, fn _ -> {:error, :rpc_failed} end)
+      end
+
+    Enum.reduce(results, {[], 0}, fn
+      {:ok, snapshot}, {acc, failed} when is_map(snapshot) -> {[snapshot | acc], failed}
+      _, {acc, failed} -> {acc, failed + 1}
+    end)
+  end
+
+  defp aggregate_cluster(nodes, unreachable, presence) do
+    total_mem =
+      nodes
+      |> Enum.reduce(0.0, fn n, acc -> acc + n.memoria_mb.total end)
+      |> Float.round(2)
+
+    %{
+      total_nos: length(nodes),
+      nos_inacessiveis: unreachable,
+      sessoes_ativas: presence.sessoes_ativas,
+      usuarios_unicos: presence.usuarios_unicos,
+      processos_cluster: Enum.reduce(nodes, 0, fn n, acc -> acc + n.processos.ativos end),
+      memoria_cluster_mb: total_mem,
+      schedulers_cluster: Enum.reduce(nodes, 0, fn n, acc -> acc + n.schedulers.online end),
+      run_queue_cluster: Enum.reduce(nodes, 0, fn n, acc -> acc + n.schedulers.run_queue end),
+      salas_replicadas:
+        nodes |> Enum.map(& &1.catalogo_local.salas_total) |> Enum.max(fn -> 0 end)
+    }
+  end
+
+  defp presence_summary do
+    rooms = read_rooms() |> Enum.take(100)
+
+    {por_sala, por_no, total_sessoes, usuarios_unicos} =
+      Enum.reduce(rooms, {[], %{}, 0, MapSet.new()}, fn room,
+                                                        {salas_acc, nos_acc, sess_acc, users_acc} ->
+        entries = safe_presence_list("room:" <> room.id)
+
+        {room_sessions, nos_acc, users_acc} =
+          Enum.reduce(entries, {0, nos_acc, users_acc}, fn {user, %{metas: metas}},
+                                                           {r_sess, n_acc, u_acc} ->
+            n_acc =
+              Enum.reduce(metas, n_acc, fn meta, acc ->
+                node_name = Map.get(meta, :no) || Map.get(meta, "no") || "desconhecido"
+                Map.update(acc, node_name, 1, &(&1 + 1))
+              end)
+
+            {r_sess + length(metas), n_acc, MapSet.put(u_acc, user)}
+          end)
+
+        salas_acc =
+          if room_sessions > 0 or room.id == "geral" do
+            [%{id: room.id, nome: room.nome, tipo: room.tipo, online: room_sessions} | salas_acc]
+          else
+            salas_acc
+          end
+
+        {salas_acc, nos_acc, sess_acc + room_sessions, users_acc}
+      end)
+
+    %{
+      sessoes_ativas: total_sessoes,
+      usuarios_unicos: MapSet.size(usuarios_unicos),
+      por_no: por_no,
+      salas_ativas: Enum.sort_by(por_sala, &{-&1.online, &1.nome})
+    }
+  end
+
+  defp read_rooms do
+    cond do
+      ets_exists?(@dist_rooms) ->
+        :ets.tab2list(@dist_rooms) |> Enum.map(fn {_, room} -> room end)
+
+      ets_exists?(@local_rooms) ->
+        :ets.tab2list(@local_rooms) |> Enum.map(fn {_, room} -> room end)
+
+      true ->
+        []
+    end
+  end
+
+  defp ets_exists?(table), do: :ets.whereis(table) != :undefined
+
+  defp safe_presence_list(topic) do
+    if Process.whereis(Presence) do
+      Presence.list(topic)
+    else
+      %{}
+    end
+  rescue
+    _ -> %{}
+  end
+
+  defp otp_socket_count do
+    :socket.number_of()
+  rescue
+    _ -> 0
+  catch
+    _, _ -> 0
+  end
+
+  defp bytes_to_mb(bytes) when is_integer(bytes), do: Float.round(bytes / 1_048_576, 2)
+  defp bytes_to_mb(_), do: 0.0
+end
