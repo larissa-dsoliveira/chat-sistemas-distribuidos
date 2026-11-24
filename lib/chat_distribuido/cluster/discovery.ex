@@ -84,7 +84,9 @@ defmodule ChatDistribuido.Cluster.Discovery do
     Process.send_after(self(), :poll, ms)
   end
 
-  defp target_nodes do
+  defp target_nodes, do: Enum.uniq(static_nodes() ++ dns_nodes())
+
+  defp static_nodes do
     case System.get_env("CLUSTER_NODES") do
       nil -> []
       "" -> []
@@ -93,6 +95,20 @@ defmodule ChatDistribuido.Cluster.Discovery do
         |> String.split(",", trim: true)
         |> Enum.map(&String.trim/1)
         |> Enum.map(&String.to_atom/1)
+    end
+  end
+
+  # Descoberta por DNS (Pessoa 03): o Docker resolve o nome do serviço para o IP
+  # de cada réplica. Com nós nomeados como `chat@<ip>`, qualquer réplica nova
+  # criada por `--scale` entra no cluster sem editar listas de nós.
+  defp dns_nodes do
+    with query when query not in [nil, ""] <- System.get_env("CLUSTER_DNS"),
+         true <- Node.alive?(),
+         {:ok, ips} <- :inet.getaddrs(String.to_charlist(query), :inet) do
+      [basename, _host] = Node.self() |> Atom.to_string() |> String.split("@", parts: 2)
+      Enum.map(ips, fn ip -> :"#{basename}@#{:inet.ntoa(ip)}" end)
+    else
+      _ -> []
     end
   end
 end

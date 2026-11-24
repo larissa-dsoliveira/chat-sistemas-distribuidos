@@ -1,0 +1,76 @@
+# Pessoa 03: cluster escalável atrás de um balanceador Nginx.
+#
+#   docker compose -f compose.lb.yml up --build -d          (3 nós)
+#   docker compose -f compose.lb.yml up -d --scale chat=15  (15 nós, sem rebuild)
+#
+# Acesso único: http://localhost:4000. O Nginx escolhe o nó de cada conexão.
+# Os nós se descobrem pelo DNS do Docker (CLUSTER_DNS) e formam um só cluster BEAM.
+# Demonstração de falha: scripts/demo-falha.ps1 (Windows) ou scripts/demo-falha.sh.
+name: chatsd
+
+x-healthcheck: &healthcheck
+  test: ["CMD", "elixir", "--erl", "+S 1:1", "-e", "Application.ensure_all_started(:inets); case :httpc.request(~c\"http://127.0.0.1:4000/health\") do {:ok, {{_, 200, _}, _, _}} -> System.halt(0); _ -> System.halt(1) end"]
+  interval: 15s
+  timeout: 10s
+  retries: 3
+  start_period: 30s
+
+services:
+  chat:
+    build: .
+    deploy:
+      replicas: 3
+    environment:
+      BIND_IP: "0.0.0.0"
+      PORT: "4000"
+      COOKIE: "chat_sd_cookie"
+      CLUSTER_DNS: "chat"
+    # Cada réplica vira o nó BEAM chat@<seu IP>, para que as outras a encontrem pelo DNS.
+    command:
+      - sh
+      - -c
+      - 'IP=$$(getent hosts "$$HOSTNAME" | cut -d " " -f 1); export ERL_FLAGS="-name chat@$$IP -setcookie $$COOKIE +S 2:2"; exec mix phx.server'
+    healthcheck: *healthcheck
+
+  balanceador:
+    image: nginx:1.28-alpine
+    ports:
+      - "${LB_BIND:-127.0.0.1}:${LB_PORT:-4000}:80"
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      chat:
+        condition: service_healthy
+
+  # Clientes que continuam conversando enquanto um nó é derrubado.
+  falha:
+    image: node:22-slim
+    profiles: ["falha"]
+    working_dir: /load
+    volumes:
+      - ./scripts:/load:ro
+    command: ["node", "falha.mjs"]
+    environment:
+      TARGET_URL: http://balanceador
+      CLIENTS: "${FALHA_CLIENTS:-30}"
+      DURATION: "${FALHA_SEGUNDOS:-45}"
+      INTERVAL_MS: "${FALHA_INTERVALO_MS:-500}"
+    depends_on:
+      - balanceador
+
+  # A mesma carga curta da Pessoa 01, agora passando pelo balanceador.
+  carga:
+    image: node:22-slim
+    profiles: ["carga"]
+    working_dir: /load
+    volumes:
+      - ./scripts:/load:ro
+    command: ["node", "carga.mjs"]
+    environment:
+      TARGET_URL: http://balanceador
+      CLIENTS: "${CARGA_CLIENTS:-15}"
+      MESSAGES: "${CARGA_MESSAGES:-20}"
+      ROOM_ID: "${CARGA_ROOM_ID:-geral}"
+      ROOM_KEY: "${CARGA_ROOM_KEY:-}"
+    depends_on:
+      - balanceador

@@ -6,6 +6,19 @@ Protótipo acadêmico de mensageria em tempo real sobre Elixir/Phoenix (BEAM OTP
 - **Catálogo Replicado**: Salas públicas e privadas (com chave SHA-256) sincronizadas entre todos os nós com concorrência local em ETS.
 - **Mensagens Distribuídas**: `Phoenix.PubSub` distribuído entre todos os nós da rede.
 
+## Cluster atrás do balanceador (Pessoa 03)
+
+Um endereço só, http://localhost:4000, com Nginx distribuindo as conexões entre
+os nós. O cluster cresce com `--scale` e se recupera quando um nó cai:
+
+```console
+docker compose -f compose.lb.yml up --build -d
+docker compose -f compose.lb.yml up -d --scale chat=15
+.\scripts\demo-falha.ps1          # Windows; no Linux: sh scripts/demo-falha.sh
+```
+
+Detalhes, resultados medidos e roteiro da apresentação em `docs/ENTREGA_PESSOA_03.md`.
+
 ## Rodar o Cluster de 3 Nós (Pessoa 02)
 
 Para subir o cluster completo com 3 servidores conectados:

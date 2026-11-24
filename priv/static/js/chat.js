@@ -5,6 +5,8 @@ const $ = id => document.getElementById(id);
 const general = {id: "geral", nome: "Geral", tipo: "publica", criado_por: "Sistema"};
 let usuario = "";
 let network = false;
+let lastNode = null;
+let failover = null;
 let roomOnline = false;
 let current = null;
 let publicRooms = [general];
@@ -33,23 +35,51 @@ function renderOnlineUsers() {
   if (badge) badge.hidden = false;
   if (bar) bar.hidden = users.length === 0;
 
-  if (container) {
-    container.replaceChildren();
-    for (const [name, meta] of users) {
-      const chip = document.createElement("span");
-      chip.className = "user-chip" + (name === usuario ? " is-me" : "");
-      const dot = document.createElement("span");
-      dot.className = "user-chip-dot";
-      const label = document.createElement("strong");
-      label.textContent = name;
-      const nodeSpan = document.createElement("span");
-      nodeSpan.className = "user-chip-node";
-      const nodeName = meta.metas?.[0]?.no || "—";
-      nodeSpan.textContent = ` (${nodeName})`;
-      chip.append(dot, label, nodeSpan);
-      container.append(chip);
-    }
+  if (!container) return;
+  // Agrupa por servidor, como os cargos na lista de membros do Discord.
+  const byNode = new Map();
+  for (const [name, meta] of users) {
+    const node = meta.metas?.[0]?.no || "—";
+    if (!byNode.has(node)) byNode.set(node, []);
+    byNode.get(node).push(name);
   }
+  const natural = (a, b) => a.localeCompare(b, "pt-BR", {numeric: true, sensitivity: "base"});
+  container.replaceChildren();
+  for (const node of [...byNode.keys()].sort(natural)) {
+    const names = byNode.get(node).sort(natural);
+    const group = document.createElement("section");
+    group.className = "members-group";
+    const heading = document.createElement("h3");
+    const count = document.createElement("span");
+    count.textContent = String(names.length);
+    heading.append(node, count);
+    heading.title = `Conectados ao servidor ${node}`;
+    group.append(heading);
+    for (const name of names) {
+      const row = document.createElement("div");
+      row.className = "member" + (name === usuario ? " is-me" : "");
+      const avatar = document.createElement("span");
+      avatar.className = "member-avatar";
+      avatar.setAttribute("aria-hidden", "true");
+      avatar.textContent = name.charAt(0);
+      avatar.style.background = avatarColor(name);
+      const label = document.createElement("span");
+      label.className = "member-name";
+      label.textContent = name;
+      row.append(avatar, label);
+      group.append(row);
+    }
+    container.append(group);
+  }
+}
+
+// Cor estável por apelido; tons escuros o bastante para a inicial branca.
+function avatarColor(name) {
+  let hash = 0;
+  for (const char of name) hash = Math.imul(hash ^ char.codePointAt(0), 16777619);
+  // Embaralha os bits finais: "bot-1" e "bot-2" ganham cores bem diferentes.
+  hash = Math.imul(hash ^ (hash >>> 15), 2246822507) >>> 0;
+  return `hsl(${hash % 360} 42% 36%)`;
 }
 
 function notice(text, error = false) { $("notice").textContent = text; $("notice").dataset.error = String(error); }
@@ -122,6 +152,14 @@ const api = new ChatConnection({
     $("node-name").textContent = node || "—";
     enableComposer();
     if (!online) notice("Conexão interrompida. Tentando reconectar automaticamente…");
+    // Failover: o balanceador pode reconectar esta aba em outro servidor do cluster.
+    if (online && node) {
+      if (lastNode && lastNode !== node) {
+        failover = `Servidor ${lastNode} saiu. Reconectado em ${node}.`;
+        notice(failover);
+      }
+      lastNode = node;
+    }
   },
   catalog(rooms) { publicRooms = rooms; renderRooms(); },
   roomState(online, room, node, error) {
@@ -131,7 +169,9 @@ const api = new ChatConnection({
       $("status").dataset.state = "online";
       $("status").textContent = "Conectado";
       if (node) $("node-name").textContent = node;
-      notice(`Você está em ${room.nome}. Mensagens apenas para os participantes desta sala.`);
+      // A sala reconecta logo após o socket; mantém visível o aviso de troca de servidor.
+      notice(failover ? `${failover} Você continua em ${room.nome}.` : `Você está em ${room.nome}. Mensagens apenas para os participantes desta sala.`);
+      failover = null;
     } else if (error) {
       roomPresences = {};
       renderOnlineUsers();
@@ -219,7 +259,7 @@ $("join-form").addEventListener("submit", async event => {
 $("leave-button").addEventListener("click", () => {
   selection += 1;
   api.disconnect();
-  network = false; roomOnline = false; current = null;
+  network = false; roomOnline = false; current = null; lastNode = null; failover = null;
   switching = false; sending = false; usuario = "";
   privateRooms.clear(); buffers.clear(); received = 0; roomPresences = {};
   $("message-count").textContent = "0";
@@ -301,3 +341,17 @@ $("message-form").addEventListener("submit", async event => {
   finally { if (token === selection) { sending = false; enableComposer(); } }
 });
 renderRooms();
+
+// Recolher/expandir o painel da esquerda; a escolha fica salva neste navegador.
+function setSidebar(collapsed) {
+  document.querySelector(".workspace").classList.toggle("is-collapsed", collapsed);
+  const toggle = $("sidebar-toggle");
+  const label = collapsed ? "Expandir painel lateral" : "Recolher painel lateral";
+  toggle.setAttribute("aria-expanded", String(!collapsed));
+  toggle.setAttribute("aria-label", label);
+  toggle.title = label;
+  toggle.firstElementChild.textContent = collapsed ? "»" : "«";
+  try { localStorage.setItem("sidebar-recolhida", collapsed ? "1" : "0"); } catch {}
+}
+$("sidebar-toggle").addEventListener("click", () => setSidebar(!document.querySelector(".workspace").classList.contains("is-collapsed")));
+try { if (localStorage.getItem("sidebar-recolhida") === "1") setSidebar(true); } catch {}
